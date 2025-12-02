@@ -17,4 +17,4 @@
 
 - [Lítica](https://github.com/jonatanLara/RepoTM2025/tree/main/Litica/dist)
 - [Procesamiento](https://github.com/jonatanLara/RepoTM2025/tree/main/Procesamiento/dist)
-- [Cerámica]()
+- [Cerámica](https://github.com/jonatanLara/RepoTM2025/tree/main/Ceramica/dist)
