@@ -8,7 +8,7 @@ from datetime import datetime
 # -------------------------------
 # LOG
 # -------------------------------
-LOG_FILE = f"organizador_pdfs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+LOG_FILE = f"organizador_pdfs_copia_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 
 
 def log(msg):
@@ -20,19 +20,18 @@ def log(msg):
 # -------------------------------
 # LÓGICA PRINCIPAL
 # -------------------------------
-def organizar_pdfs(base_path, modo, progress):
+def organizar_pdfs_copia(origen_base, destino_base, modo, progress):
     patron_pdf = re.compile(r'^(T[1-7]_\d{5})\.pdf$', re.IGNORECASE)
-
     encontrados = []
 
-    # Primera pasada: detectar
-    for raiz, _, archivos in os.walk(base_path):
+    # Detectar PDFs
+    for raiz, _, archivos in os.walk(origen_base):
         if os.path.basename(raiz) == "PROS":
             continue
 
         for archivo in archivos:
             if patron_pdf.match(archivo):
-                encontrados.append((raiz, archivo))
+                encontrados.append(os.path.join(raiz, archivo))
 
     total = len(encontrados)
     progress["maximum"] = total
@@ -42,38 +41,29 @@ def organizar_pdfs(base_path, modo, progress):
         log("No se encontraron PDFs válidos.")
         return 0, 0
 
-    # Segunda pasada: procesar
-    for raiz, archivo in encontrados:
+    for origen_pdf in encontrados:
+        archivo = os.path.basename(origen_pdf)
         id_monumento = archivo.replace(".pdf", "")
-        origen = os.path.join(raiz, archivo)
 
-        carpeta_id = os.path.join(raiz, id_monumento)
-        carpeta_pros = os.path.join(carpeta_id, "PROS")
-        destino = os.path.join(carpeta_pros, archivo)
+        carpeta_destino = os.path.join(destino_base, id_monumento, "PROS")
+        destino_pdf = os.path.join(carpeta_destino, archivo)
 
-        log(f"\n▶ PDF detectado: {origen}")
-
-        # Evitar reprocesar
-        if os.path.exists(destino):
-            log("  ↪ Saltado (ya existe en PROS)")
-            progress["value"] += 1
-            continue
+        log(f"\n▶ PDF: {origen_pdf}")
 
         if modo == "dry-run":
-            log(f"  [DRY-RUN] CREAR: {carpeta_pros}")
-            log(f"  [DRY-RUN] {modo.upper()}: {origen} → {destino}")
+            log(f"  [DRY-RUN] CREAR: {carpeta_destino}")
+            log(f"  [DRY-RUN] COPIAR: {origen_pdf} → {destino_pdf}")
             progress["value"] += 1
             continue
 
         try:
-            os.makedirs(carpeta_pros, exist_ok=True)
+            os.makedirs(carpeta_destino, exist_ok=True)
 
-            if modo == "mover":
-                shutil.move(origen, destino)
-            elif modo == "copiar":
-                shutil.copy2(origen, destino)
-
-            log(f"  ✔ {modo.upper()} OK")
+            if not os.path.exists(destino_pdf):
+                shutil.copy2(origen_pdf, destino_pdf)
+                log("  ✔ COPIADO OK")
+            else:
+                log("  ↪ Saltado (ya existe)")
 
         except Exception as e:
             log(f"  ✖ ERROR: {e}")
@@ -94,24 +84,24 @@ def seleccionar_carpeta(entry):
 
 
 def ejecutar():
-    carpeta = entrada_carpeta.get()
+    origen = entrada_origen.get()
+    destino = entrada_destino.get()
     modo = opcion_modo.get()
 
-    if not carpeta or not os.path.isdir(carpeta):
-        messagebox.showerror("Error", "Carpeta inválida")
+    if not origen or not os.path.isdir(origen):
+        messagebox.showerror("Error", "Carpeta de origen inválida")
         return
 
-    if modo == "mover":
-        if not messagebox.askyesno(
-            "Confirmar",
-            "Se moverán archivos PDF.\n¿Desea continuar?"
-        ):
-            return
+    if not destino or not os.path.isdir(destino):
+        messagebox.showerror("Error", "Carpeta destino inválida")
+        return
 
     log(f"\n=== INICIO ({modo.upper()}) ===")
 
     try:
-        procesados, total = organizar_pdfs(carpeta, modo, progress)
+        procesados, total = organizar_pdfs_copia(
+            origen, destino, modo, progress
+        )
         log("=== FIN ===")
 
         messagebox.showinfo(
@@ -126,26 +116,34 @@ def ejecutar():
 # VENTANA
 # -------------------------------
 root = tk.Tk()
-root.title("Organizador de PDFs por Monumento")
-root.geometry("650x420")
+root.title("Organizador de PDFs (Copia segura)")
+root.geometry("700x460")
 
-tk.Label(root, text="Carpeta / Unidad a analizar").pack(pady=5)
-entrada_carpeta = tk.Entry(root, width=60)
-entrada_carpeta.pack()
+tk.Label(root, text="Carpeta ORIGEN (no se modifica)").pack(pady=5)
+entrada_origen = tk.Entry(root, width=65)
+entrada_origen.pack()
 tk.Button(
     root,
     text="Seleccionar",
-    command=lambda: seleccionar_carpeta(entrada_carpeta)
+    command=lambda: seleccionar_carpeta(entrada_origen)
+).pack(pady=5)
+
+tk.Label(root, text="Carpeta DESTINO (estructura nueva)").pack(pady=5)
+entrada_destino = tk.Entry(root, width=65)
+entrada_destino.pack()
+tk.Button(
+    root,
+    text="Seleccionar",
+    command=lambda: seleccionar_carpeta(entrada_destino)
 ).pack(pady=5)
 
 opcion_modo = tk.StringVar(value="dry-run")
 
-tk.Label(root, text="Modo de operación").pack(pady=10)
+tk.Label(root, text="Modo").pack(pady=10)
 tk.Radiobutton(root, text="Simulación (dry-run)", variable=opcion_modo, value="dry-run").pack()
-tk.Radiobutton(root, text="Mover PDFs", variable=opcion_modo, value="mover").pack()
-tk.Radiobutton(root, text="Copiar PDFs", variable=opcion_modo, value="copiar").pack()
+tk.Radiobutton(root, text="Copiar y re-encarpetar", variable=opcion_modo, value="copiar").pack()
 
-progress = ttk.Progressbar(root, length=500)
+progress = ttk.Progressbar(root, length=550)
 progress.pack(pady=20)
 
 tk.Button(
