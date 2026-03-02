@@ -20,4 +20,3 @@
 - [Cerámica](https://github.com/jonatanLara/RepoTM2025/tree/main/Ceramica/dist)
 - [Reencarpetardor](https://github.com/jonatanLara/RepoTM2025/tree/main/Reencarpetar)
 
-Proximamente.
